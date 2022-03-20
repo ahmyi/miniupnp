@@ -95,7 +95,6 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <AdditionalIncludeDirectories>..;..\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>ws2_32.lib;$(Configuration)\miniupnpc.lib;IPHlpApi.Lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -115,7 +114,6 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <AdditionalIncludeDirectories>..;..\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>ws2_32.lib;$(Configuration)\miniupnpc.lib;$(AdditionalDependencies)</AdditionalDependencies>
@@ -134,7 +132,6 @@
       <PrecompiledHeader />
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>..;..\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>ws2_32.lib;$(Configuration)\miniupnpc.lib;IPHlpApi.Lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -156,7 +153,6 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>..;..\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>ws2_32.lib;$(Configuration)\miniupnpc.lib;IPHlpApi.Lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -168,7 +164,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\upnpc.c" />
+    <ClCompile Include="..\upnpc.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="miniupnpc.vcxproj">

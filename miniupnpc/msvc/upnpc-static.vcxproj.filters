@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\upnpc.c">
+    <ClCompile Include="..\upnpc.c">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>

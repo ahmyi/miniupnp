@@ -919,7 +919,7 @@ struct runtime_vars {
  *    0 : ok
  *   -1 : error */
 static int
-parselanaddr(struct lan_addr_s * lan_addr, const char * str, int debug_flag)
+parselanaddr(struct lan_addr_s * lan_addr, const char * str)
 {
 	const char * p;
 	unsigned int n;
@@ -939,7 +939,6 @@ parselanaddr(struct lan_addr_s * lan_addr, const char * str, int debug_flag)
 		             &lan_addr->addr, &lan_addr->mask) < 0) {
 #ifdef ENABLE_IPV6
 			fprintf(stderr, "interface \"%s\" has no IPv4 address\n", str);
-			syslog(LOG_NOTICE, "interface \"%s\" has no IPv4 address\n", str);
 			lan_addr->str[0] = '\0';
 			lan_addr->addr.s_addr = htonl(0x00000000u);
 			lan_addr->mask.s_addr = htonl(0xffffffffu);
@@ -959,10 +958,10 @@ parselanaddr(struct lan_addr_s * lan_addr, const char * str, int debug_flag)
 			goto parselan_error;
 	}
 	if(!addr_is_reserved(&lan_addr->addr)) {
-		INIT_PRINT_ERR("Error: LAN address contains public IP address : %s\n", lan_addr->str);
-		INIT_PRINT_ERR("Public IP address can be configured via ext_ip= option\n");
-		INIT_PRINT_ERR("LAN address should contain private address, e.g. from 192.168. block\n");
-		INIT_PRINT_ERR("Listening on public IP address is a security issue\n");
+		fprintf(stderr, "Error: LAN address contains public IP address : %s\n", lan_addr->str);
+		fprintf(stderr, "Public IP address can be configured via ext_ip= option\n");
+		fprintf(stderr, "LAN address should contain private address, e.g. from 192.168. block\n");
+		fprintf(stderr, "Listening on public IP address is a security issue\n");
 		return -1;
 	}
 	if(*p == '/')
@@ -1011,12 +1010,12 @@ parselanaddr(struct lan_addr_s * lan_addr, const char * str, int debug_flag)
 			lan_addr->ext_ip_str[n] = '\0';
 			if(!inet_aton(lan_addr->ext_ip_str, &lan_addr->ext_ip_addr)) {
 				/* error */
-				INIT_PRINT_ERR("Error parsing address : %s\n", lan_addr->ext_ip_str);
+				fprintf(stderr, "Error parsing address : %s\n", lan_addr->ext_ip_str);
 				return -1;
 			}
 			if(addr_is_reserved(&lan_addr->ext_ip_addr)) {
 				/* error */
-				INIT_PRINT_ERR("Error: option ext_ip address contains reserved / private address : %s\n", lan_addr->ext_ip_str);
+				fprintf(stderr, "Error: option ext_ip address contains reserved / private address : %s\n", lan_addr->ext_ip_str);
 				return -1;
 			}
 		}
@@ -1034,15 +1033,13 @@ parselanaddr(struct lan_addr_s * lan_addr, const char * str, int debug_flag)
 				n++;
 			}
 			if(n >= sizeof(tmp)) {
-				INIT_PRINT_ERR("Cannot parse '%s'\n", p);
+				fprintf(stderr, "Cannot parse '%s'\n", p);
 				break;
 			}
 			tmp[n] = '\0';
 			index = if_nametoindex(tmp);
 			if(index == 0) {
 				fprintf(stderr, "Cannot get index for network interface %s\n",
-				        tmp);
-				syslog(LOG_WARNING, "Cannot get index for network interface %s\n",
 				        tmp);
 			} else {
 				lan_addr->add_indexes |= (1UL << (index - 1));
@@ -1051,25 +1048,31 @@ parselanaddr(struct lan_addr_s * lan_addr, const char * str, int debug_flag)
 		}
 	}
 #endif
-	if(lan_addr->ifname[0] != '\0') {
+	if(lan_addr->ifname[0] != '\0')
+	{
 		lan_addr->index = if_nametoindex(lan_addr->ifname);
-		if(lan_addr->index == 0) {
+		if(lan_addr->index == 0)
 			fprintf(stderr, "Cannot get index for network interface %s\n",
 			        lan_addr->ifname);
-			syslog(LOG_WARNING, "Cannot get index for network interface %s\n",
-			        lan_addr->ifname);
-		}
-	} else {
-#ifdef ENABLE_IPV6
-		INIT_PRINT_ERR("Error: please specify LAN network interface by name instead of IPv4 address : %s\n", str);
-		return -1;
-#else
-		syslog(LOG_NOTICE, "it is advised to use network interface name instead of %s", str);
-#endif
 	}
+#ifdef ENABLE_IPV6
+	else
+	{
+		fprintf(stderr,
+		        "Error: please specify LAN network interface by name instead of IPv4 address : %s\n",
+		        str);
+		return -1;
+	}
+#else
+	else
+	{
+		syslog(LOG_NOTICE, "it is advised to use network interface name instead of %s", str);
+	}
+#endif
 	return 0;
 parselan_error:
-	INIT_PRINT_ERR("Error parsing address/mask (or interface name) : %s\n", str);
+	fprintf(stderr, "Error parsing address/mask (or interface name) : %s\n",
+	        str);
 	return -1;
 }
 
@@ -1188,18 +1191,7 @@ init(int argc, char * * argv, struct runtime_vars * v)
 	{
 		if(0 == strcmp(argv[i], "-h") || 0 == strcmp(argv[i], "--help"))
 			goto print_usage;
-		if(0 == strcmp(argv[i], "-d"))
-			debug_flag = 1;
 	}
-
-	openlog_option = LOG_PID|LOG_CONS;
-	if(debug_flag)
-	{
-		openlog_option |= LOG_PERROR;	/* also log on stderr */
-	}
-
-	openlog("miniupnpd", openlog_option, LOG_MINIUPNPD);
-
 #ifndef DISABLE_CONFIG_FILE
 	/* first check if "-f" option is used */
 	for(i=2; i<argc; i++)
@@ -1230,14 +1222,11 @@ init(int argc, char * * argv, struct runtime_vars * v)
 #ifndef DISABLE_CONFIG_FILE
 	/* read options file first since
 	 * command line arguments have final say */
-	if(readoptionsfile(optionsfile, debug_flag) < 0)
+	if(readoptionsfile(optionsfile) < 0)
 	{
 		/* only error if file exists or using -f */
 		if(access(optionsfile, F_OK) == 0 || options_flag)
-		{
-			INIT_PRINT_ERR("Error reading configuration file %s\n", optionsfile);
-			return 1;
-		}
+			fprintf(stderr, "Error reading configuration file %s\n", optionsfile);
 	}
 	else
 	{
@@ -1270,18 +1259,18 @@ init(int argc, char * * argv, struct runtime_vars * v)
 				lan_addr = (struct lan_addr_s *) malloc(sizeof(struct lan_addr_s));
 				if (lan_addr == NULL)
 				{
-					INIT_PRINT_ERR("malloc(sizeof(struct lan_addr_s)): %m");
-					return 1;
+					fprintf(stderr, "malloc(sizeof(struct lan_addr_s)): %m");
+					break;
 				}
-				if(parselanaddr(lan_addr, ary_options[i].value, debug_flag) != 0)
+				if(parselanaddr(lan_addr, ary_options[i].value) != 0)
 				{
-					INIT_PRINT_ERR("can't parse \"%s\" as a valid "
+					fprintf(stderr, "can't parse \"%s\" as a valid "
 #ifndef ENABLE_IPV6
 					        "LAN address or "
 #endif
 					        "interface name\n", ary_options[i].value);
 					free(lan_addr);
-					return 1;
+					break;
 				}
 				LIST_INSERT_HEAD(&lan_addrs, lan_addr, list);
 				break;
@@ -1289,8 +1278,7 @@ init(int argc, char * * argv, struct runtime_vars * v)
 			case UPNPIPV6_LISTENING_IP:
 				if (inet_pton(AF_INET6, ary_options[i].value, &ipv6_bind_addr) < 1)
 				{
-					INIT_PRINT_ERR("can't parse \"%s\" as valid IPv6 listening address", ary_options[i].value);
-					return 1;
+					fprintf(stderr, "can't parse \"%s\" as valid IPv6 listening address", ary_options[i].value);
 				}
 				break;
 			case UPNPIPV6_DISABLE:
@@ -1342,12 +1330,6 @@ init(int argc, char * * argv, struct runtime_vars * v)
 				break;
 #endif	/* ENABLE_MANUFACTURER_INFO_CONFIGURATION */
 #ifdef USE_NETFILTER
-			case UPNPTABLENAME:
-				set_rdr_name(RDR_TABLE_NAME, ary_options[i].value);
-				break;
-			case UPNPNATTABLENAME:
-				set_rdr_name(RDR_NAT_TABLE_NAME, ary_options[i].value);
-				break;
 			case UPNPFORWARDCHAIN:
 				set_rdr_name(RDR_FORWARD_CHAIN_NAME, ary_options[i].value);
 				break;
@@ -1447,11 +1429,6 @@ init(int argc, char * * argv, struct runtime_vars * v)
 			case UPNPLEASEFILE:
 				lease_file = ary_options[i].value;
 				break;
-#ifdef ENABLE_UPNPPINHOLE
-			case UPNPLEASEFILE6:
-				lease_file6 = ary_options[i].value;
-				break;
-#endif	/* ENABLE_UPNPPINHOLE */
 #endif	/* ENABLE_LEASEFILE */
 			case UPNPMINISSDPDSOCKET:
 				minissdpdsocketpath = ary_options[i].value;
@@ -1461,26 +1438,25 @@ init(int argc, char * * argv, struct runtime_vars * v)
 				if (strcmp(ary_options[i].value, "yes") == 0)
 					SETFLAG(FORCEIGDDESCV1MASK);
 				else if (strcmp(ary_options[i].value, "no") != 0 ) {
-					INIT_PRINT_ERR("force_igd_desc_v1 can only be yes or no\n");
-					return 1;
+					fprintf(stderr, "force_igd_desc_v1 can only be yes or no\n");
 				}
 				break;
 #endif
 			default:
-				INIT_PRINT_ERR("Unknown option in file %s\n",
+				fprintf(stderr, "Unknown option in file %s\n",
 				        optionsfile);
 			}
 		}
 #ifdef ENABLE_PCP
 		/* if lifetimes are inverse */
 		if (min_lifetime >= max_lifetime) {
-			INIT_PRINT_ERR("Minimum lifetime (%lu) is greater than or equal to maximum lifetime (%lu).\n", min_lifetime, max_lifetime);
-			INIT_PRINT_ERR("Check your configuration file.\n");
+			fprintf(stderr, "Minimum lifetime (%lu) is greater than or equal to maximum lifetime (%lu).\n", min_lifetime, max_lifetime);
+			fprintf(stderr, "Check your configuration file.\n");
 			return 1;
 		}
 #endif	/* ENABLE_PCP */
 		if (GETFLAG(PERFORMSTUNMASK) && !ext_stun_host) {
-			INIT_PRINT_ERR("You must specify ext_stun_host= when ext_perform_stun=yes\n");
+			fprintf(stderr, "You must specify ext_stun_host= when ext_perform_stun=yes\n");
 			return 1;
 		}
 	}
@@ -1491,8 +1467,7 @@ init(int argc, char * * argv, struct runtime_vars * v)
 	{
 		if(argv[i][0]!='-')
 		{
-			INIT_PRINT_ERR("Unknown option: %s\n", argv[i]);
-			goto print_usage;
+			fprintf(stderr, "Unknown option: %s\n", argv[i]);
 		}
 		else switch(argv[i][1])
 		{
@@ -1516,10 +1491,8 @@ init(int argc, char * * argv, struct runtime_vars * v)
 		case 'b':
 			if(i+1 < argc) {
 				upnp_bootid = (unsigned int)strtoul(argv[++i], NULL, 10);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			} else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 'o':
 			if(i+1 < argc) {
@@ -1535,63 +1508,49 @@ init(int argc, char * * argv, struct runtime_vars * v)
 					}
 				} else
 					use_ext_ip_addr = argv[i];
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			} else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 't':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				v->notify_interval = atoi(argv[++i]);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 'r':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				v->clean_ruleset_interval = atoi(argv[++i]);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 'u':
 			if(i+1 < argc) {
 				strncpy(uuidvalue_igd+5, argv[++i], strlen(uuidvalue_igd+5) + 1);
 				complete_uuidvalues();
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			} else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 #ifdef ENABLE_MANUFACTURER_INFO_CONFIGURATION
 		case 'z':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				strncpy(friendly_name, argv[++i], FRIENDLY_NAME_MAX_LEN);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			friendly_name[FRIENDLY_NAME_MAX_LEN-1] = '\0';
 			break;
 #endif	/* ENABLE_MANUFACTURER_INFO_CONFIGURATION */
 		case 's':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				strncpy(serialnumber, argv[++i], SERIALNUMBER_MAX_LEN);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			serialnumber[SERIALNUMBER_MAX_LEN-1] = '\0';
 			break;
 		case 'm':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				strncpy(modelnumber, argv[++i], MODELNUMBER_MAX_LEN);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			modelnumber[MODELNUMBER_MAX_LEN-1] = '\0';
 			break;
 #ifdef ENABLE_NATPMP
@@ -1617,67 +1576,55 @@ init(int argc, char * * argv, struct runtime_vars * v)
 			SETFLAG(SECUREMODEMASK);
 			break;
 		case 'i':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				ext_if_name = argv[++i];
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 #ifdef ENABLE_IPV6
 		case 'I':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				ext_if_name6 = argv[++i];
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 #endif
 #ifdef USE_PF
 		case 'q':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				queue = argv[++i];
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 'T':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				tag = argv[++i];
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 #endif	/* USE_PF */
 		case 'p':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				v->port = atoi(argv[++i]);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 #ifdef ENABLE_HTTPS
 		case 'H':
-			if(i+1 < argc) {
+			if(i+1 < argc)
 				v->https_port = atoi(argv[++i]);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 #endif	/* ENABLE_HTTPS */
 #ifdef ENABLE_NFQUEUE
 		case 'Q':
-			if(i+1<argc) {
+			if(i+1<argc)
+			{
 				nfqueue = atoi(argv[++i]);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
 			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 'n':
 			if (i+1 < argc) {
@@ -1685,11 +1632,10 @@ init(int argc, char * * argv, struct runtime_vars * v)
 				if(n_nfqix < MAX_LAN_ADDR) {
 					nfqix[n_nfqix++] = if_nametoindex(argv[i]);
 				} else {
-					INIT_PRINT_ERR( "Too many nfq interfaces. Ignoring %s\n", argv[i]);
+					fprintf(stderr,"Too many nfq interfaces. Ignoring %s\n", argv[i]);
 				}
 			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			}
 			break;
 #endif	/* ENABLE_NFQUEUE */
@@ -1697,30 +1643,27 @@ init(int argc, char * * argv, struct runtime_vars * v)
 		case 'P':
 			if(i+1 < argc)
 				pidfilename = argv[++i];
-			else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 #endif
-		case 'd':	/* discarding */
+		case 'd':
+			debug_flag = 1;
 			break;
 		case 'w':
 			if(i+1 < argc)
 				presurl = argv[++i];
-			else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 'B':
-			if(i+2<argc) {
+			if(i+2<argc)
+			{
 				downstream_bitrate = strtoul(argv[++i], 0, 0);
 				upstream_bitrate = strtoul(argv[++i], 0, 0);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes two argument.\n", argv[i][1]);
-				goto print_usage;
 			}
+			else
+				fprintf(stderr, "Option -%c takes two arguments.\n", argv[i][1]);
 			break;
 		case 'a':
 #ifndef MULTIPLE_EXTERNAL_IP
@@ -1730,18 +1673,18 @@ init(int argc, char * * argv, struct runtime_vars * v)
 				lan_addr = (struct lan_addr_s *) malloc(sizeof(struct lan_addr_s));
 				if (lan_addr == NULL)
 				{
-					INIT_PRINT_ERR("malloc(sizeof(struct lan_addr_s)): %m");
-					return 1;
+					fprintf(stderr, "malloc(sizeof(struct lan_addr_s)): %m");
+					break;
 				}
-				if(parselanaddr(lan_addr, argv[i], debug_flag) != 0)
+				if(parselanaddr(lan_addr, argv[i]) != 0)
 				{
-					INIT_PRINT_ERR("can't parse \"%s\" as a valid "
+					fprintf(stderr, "can't parse \"%s\" as a valid "
 #ifndef ENABLE_IPV6
 					        "LAN address or "
 #endif	/* #ifndef ENABLE_IPV6 */
 					        "interface name\n", argv[i]);
 					free(lan_addr);
-					return 1;
+					break;
 				}
 				/* check if we already have this address */
 				for(lan_addr2 = lan_addrs.lh_first; lan_addr2 != NULL; lan_addr2 = lan_addr2->list.le_next)
@@ -1751,34 +1694,33 @@ init(int argc, char * * argv, struct runtime_vars * v)
 				}
 				if (lan_addr2 == NULL)
 					LIST_INSERT_HEAD(&lan_addrs, lan_addr, list);
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
 			}
+			else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 #else	/* #ifndef MULTIPLE_EXTERNAL_IP */
 			if(i+2 < argc)
 			{
 				char *val = calloc((strlen(argv[i+1]) + strlen(argv[i+2]) + 2), sizeof(char));
 				if (val == NULL)
 				{
-					INIT_PRINT_ERR("memory allocation error for listen address storage\n");
-					return 1;
+					fprintf(stderr, "memory allocation error for listen address storage\n");
+					break;
 				}
 				sprintf(val, "%s %s", argv[i+1], argv[i+2]);
 
 				lan_addr = (struct lan_addr_s *) malloc(sizeof(struct lan_addr_s));
 				if (lan_addr == NULL)
 				{
-					INIT_PRINT_ERR("malloc(sizeof(struct lan_addr_s)): %m");
+					fprintf(stderr, "malloc(sizeof(struct lan_addr_s)): %m");
 					free(val);
-					return 1;
+					break;
 				}
-				if(parselanaddr(lan_addr, val, debug_flag) != 0)
+				if(parselanaddr(lan_addr, val) != 0)
 				{
-					INIT_PRINT_ERR("can't parse \"%s\" as a valid LAN address or interface name\n", val);
+					fprintf(stderr, "can't parse \"%s\" as a valid LAN address or interface name\n", val);
 					free(lan_addr);
 					free(val);
-					return 1;
+					break;
 				}
 				/* check if we already have this address */
 				for(lan_addr2 = lan_addrs.lh_first; lan_addr2 != NULL; lan_addr2 = lan_addr2->list.le_next)
@@ -1791,10 +1733,9 @@ init(int argc, char * * argv, struct runtime_vars * v)
 
 				free(val);
 				i+=2;
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
 			}
+			else
+				fprintf(stderr, "Option -%c takes two arguments.\n", argv[i][1]);
 #endif 	/* #ifndef MULTIPLE_EXTERNAL_IP */
 			break;
 		case 'A':
@@ -1802,36 +1743,27 @@ init(int argc, char * * argv, struct runtime_vars * v)
 				void * tmp;
 				tmp = realloc(upnppermlist, sizeof(struct upnpperm) * (num_upnpperm+1));
 				if(tmp == NULL) {
-					INIT_PRINT_ERR("memory allocation error for permission\n");
-					return 1;
+					fprintf(stderr, "memory allocation error for permission\n");
 				} else {
 					upnppermlist = tmp;
 					if(read_permission_line(upnppermlist + num_upnpperm, argv[++i]) >= 0) {
 						num_upnpperm++;
 					} else {
-						INIT_PRINT_ERR("Permission rule parsing error :\n%s\n", argv[i]);
-						return 1;
+						fprintf(stderr, "Permission rule parsing error :\n%s\n", argv[i]);
 					}
 				}
-			} else {
-				INIT_PRINT_ERR("Option -%c takes one argument.\n", argv[i][1]);
-				goto print_usage;
-			}
+			} else
+				fprintf(stderr, "Option -%c takes one argument.\n", argv[i][1]);
 			break;
 		case 'f':
 			i++;	/* discarding, the config file is already read */
 			break;
 		default:
-			INIT_PRINT_ERR("Unknown option: %s\n", argv[i]);
-			goto print_usage;
+			fprintf(stderr, "Unknown option: %s\n", argv[i]);
 		}
 	}
 	if(!ext_if_name || !lan_addrs.lh_first) {
 		/* bad configuration */
-		if(!ext_if_name)
-		    INIT_PRINT_ERR("Error: Option -i missing and ext_ifname is not set in config file\n");
-		if (!lan_addrs.lh_first)
-		    INIT_PRINT_ERR("Error: Option -a missing and listening_ip is not set in config file\n");
 		goto print_usage;
 	}
 
@@ -1842,17 +1774,17 @@ init(int argc, char * * argv, struct runtime_vars * v)
 #endif
 
 	if (use_ext_ip_addr && GETFLAG(PERFORMSTUNMASK)) {
-		INIT_PRINT_ERR("Error: options ext_ip= and ext_perform_stun=yes cannot be specified together\n");
+		fprintf(stderr, "Error: options ext_ip= and ext_perform_stun=yes cannot be specified together\n");
 		return 1;
 	}
 
 	if (use_ext_ip_addr) {
 		if (inet_pton(AF_INET, use_ext_ip_addr, &addr) != 1) {
-			INIT_PRINT_ERR("Error: option ext_ip contains invalid address %s\n", use_ext_ip_addr);
+			fprintf(stderr, "Error: option ext_ip contains invalid address %s\n", use_ext_ip_addr);
 			return 1;
 		}
 		if (addr_is_reserved(&addr)) {
-			INIT_PRINT_ERR("Error: option ext_ip contains reserved / private address %s, not public routable\n", use_ext_ip_addr);
+			fprintf(stderr, "Error: option ext_ip contains reserved / private address %s, not public routable\n", use_ext_ip_addr);
 			return 1;
 		}
 	}
@@ -1874,6 +1806,14 @@ init(int argc, char * * argv, struct runtime_vars * v)
 #endif
 	}
 #endif
+
+	openlog_option = LOG_PID|LOG_CONS;
+	if(debug_flag)
+	{
+		openlog_option |= LOG_PERROR;	/* also log on stderr */
+	}
+
+	openlog("miniupnpd", openlog_option, LOG_MINIUPNPD);
 
 	if(!debug_flag)
 	{
@@ -1984,9 +1924,6 @@ init(int argc, char * * argv, struct runtime_vars * v)
 	/*remove(lease_file);*/
 	syslog(LOG_INFO, "Reloading rules from lease file");
 	reload_from_lease_file();
-#ifdef ENABLE_UPNPPINHOLE
-	reload_from_lease_file6();
-#endif
 #endif
 
 #ifdef TOMATO
@@ -2257,7 +2194,6 @@ main(int argc, char * * argv)
 		struct in_addr addr;
 		if (getifaddr(ext_if_name, if_addr, INET_ADDRSTRLEN, &addr, NULL) < 0) {
 			syslog(LOG_WARNING, "Cannot get IP address for ext interface %s. Network is down", ext_if_name);
-			disable_port_forwarding = 1;
 		} else if (addr_is_reserved(&addr)) {
 			syslog(LOG_INFO, "Reserved / private IP address %s on ext interface %s: Port forwarding is impossible", if_addr, ext_if_name);
 			syslog(LOG_INFO, "You are probably behind NAT, enable option ext_perform_stun=yes to detect public IP address");
@@ -2534,32 +2470,22 @@ main(int argc, char * * argv)
 		{
 			syslog(LOG_INFO, "should send external iface address change notification(s)");
 			if(GETFLAG(PERFORMSTUNMASK))
-			{
-				if (update_ext_ip_addr_from_stun(0) != 0) {
-					/* if stun succeed it updates disable_port_forwarding;
-					 * if stun failed (non-zero return value) then port forwarding would not work, so disable it */
-					disable_port_forwarding = 1;
-				}
-			}
-			else if (!use_ext_ip_addr)
+				update_ext_ip_addr_from_stun(0);
+			if (!use_ext_ip_addr)
 			{
 				char if_addr[INET_ADDRSTRLEN];
 				struct in_addr addr;
-				if (getifaddr(ext_if_name, if_addr, INET_ADDRSTRLEN, &addr, NULL) < 0) {
-					syslog(LOG_WARNING, "Cannot get IP address for ext interface %s. Network is down", ext_if_name);
-					disable_port_forwarding = 1;
-				} else {
+				if (getifaddr(ext_if_name, if_addr, INET_ADDRSTRLEN, &addr, NULL) == 0) {
 					int reserved = addr_is_reserved(&addr);
-					if (!disable_port_forwarding && reserved) {
+					if (disable_port_forwarding && !reserved) {
+						syslog(LOG_INFO, "Public IP address %s on ext interface %s: Port forwarding is enabled", if_addr, ext_if_name);
+					} else if (!disable_port_forwarding && reserved) {
 						syslog(LOG_INFO, "Reserved / private IP address %s on ext interface %s: Port forwarding is impossible", if_addr, ext_if_name);
 						syslog(LOG_INFO, "You are probably behind NAT, enable option ext_perform_stun=yes to detect public IP address");
 						syslog(LOG_INFO, "Or use ext_ip= / -o option to declare public IP address");
 						syslog(LOG_INFO, "Public IP address is required by UPnP/PCP/PMP protocols and clients do not work without it");
-						disable_port_forwarding = 1;
-					} else if (disable_port_forwarding && !reserved) {
-						syslog(LOG_INFO, "Public IP address %s on ext interface %s: Port forwarding is enabled", if_addr, ext_if_name);
-						disable_port_forwarding = 0;
 					}
+					disable_port_forwarding = reserved;
 				}
 			}
 #ifdef ENABLE_NATPMP

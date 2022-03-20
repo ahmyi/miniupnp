@@ -2,7 +2,7 @@
 /* vim: tabstop=4 shiftwidth=4 noexpandtab
  * MiniUPnP project
  * http://miniupnp.free.fr/ or https://miniupnp.tuxfamily.org/
- * (c) 2006-2021 Thomas Bernard
+ * (c) 2006-2020 Thomas Bernard
  * This software is subject to the conditions detailed
  * in the LICENCE file provided within the distribution */
 
@@ -887,11 +887,11 @@ strcat_int(char * str, int * len, int * tmplen, int i)
  * This way, the progam stack usage is kept low */
 static char *
 genXML(char * str, int * len, int * tmplen,
-                   const struct XMLElt * p,
-       int force_igd1)
+                   const struct XMLElt * p)
 {
 #define GENXML_STACK_SIZE 16
 	unsigned short i, j;
+	unsigned long k;
 	int top;
 	const char * eltname, *s;
 	char c;
@@ -928,7 +928,7 @@ genXML(char * str, int * len, int * tmplen,
 				str = strcat_str(str, len, tmplen, p[i].data);
 #ifdef IGD_V2
 				/* checking a single 'u' saves us 4 strcmp() calls most of the time */
-				if (force_igd1 && (p[i].data[0] == 'u'))
+				if (GETFLAG(FORCEIGDDESCV1MASK) && (p[i].data[0] == 'u'))
 				{
 					if ((strcmp(p[i].data, DEVICE_TYPE_IGD) == 0) ||
 						(strcmp(p[i].data, DEVICE_TYPE_WAN) == 0)  ||
@@ -943,7 +943,6 @@ genXML(char * str, int * len, int * tmplen,
 				str = strcat_str(str, len, tmplen, eltname);
 				str = strcat_char(str, len, tmplen, '>');
 			}
-unstack:
 			for(;;)
 			{
 				if(top < 0)
@@ -968,15 +967,6 @@ unstack:
 		}
 		else
 		{
-			unsigned long k = (unsigned long)p[i].data;
-#ifdef IGD_V2
-			if((force_igd1 && (p[k & 0xffff].eltname[0] == '/')) &&
-			   (strcmp(p[k & 0xffff].data, "urn:schemas-upnp-org:service:DeviceProtection:1") == 0 ||
-			    strcmp(p[k & 0xffff].data, "urn:schemas-upnp-org:service:WANIPv6FirewallControl:1") == 0)) {
-				/* Skip the child element */
-				goto unstack;
-			}
-#endif
 			/* node with child(ren) */
 			/*printf("<%s>\n", eltname); */
 			str = strcat_char(str, len, tmplen, '<');
@@ -989,6 +979,7 @@ unstack:
 				str = strcat_str(str, len, tmplen, configid_str);
 			}
 			str = strcat_char(str, len, tmplen, '>');
+			k = (unsigned long)p[i].data;
 			i = k & 0xffff;
 			j = i + (k >> 16);
 			if(top < (GENXML_STACK_SIZE - 1)) {
@@ -1012,7 +1003,7 @@ unstack:
  *   the returned string.
  * - tmp_uuid argument is used to build the uuid string */
 char *
-genRootDesc(int * len, int force_igd1)
+genRootDesc(int * len)
 {
 	char * str;
 	int tmplen;
@@ -1023,7 +1014,7 @@ genRootDesc(int * len, int force_igd1)
 	* len = strlen(xmlver);
 	/*strcpy(str, xmlver); */
 	memcpy(str, xmlver, *len + 1);
-	str = genXML(str, len, &tmplen, rootDesc, force_igd1);
+	str = genXML(str, len, &tmplen, rootDesc);
 	str[*len] = '\0';
 	return str;
 }
@@ -1032,7 +1023,7 @@ genRootDesc(int * len, int force_igd1)
  * Generate service description with allowed methods and
  * related variables. */
 static char *
-genServiceDesc(int * len, const struct serviceDesc * s, int force_igd1)
+genServiceDesc(int * len, const struct serviceDesc * s)
 {
 	int i, j;
 	const struct action * acts;
@@ -1063,12 +1054,6 @@ genServiceDesc(int * len, const struct serviceDesc * s, int force_igd1)
 	str = strcat_str(str, len, &tmplen, "<actionList>");
 	while(acts[i].name)
 	{
-#if defined(IGD_V2)
-		/* fake a IGD v1 for Microsoft clients :
-		 * no DeletePortMappingRange, GetListOfPortMappings, AddAnyPortMapping */
-		if (force_igd1 && strcmp(acts[i].name, "DeletePortMappingRange") == 0)
-			break;
-#endif
 		str = strcat_str(str, len, &tmplen, "<action><name>");
 		str = strcat_str(str, len, &tmplen, acts[i].name);
 		str = strcat_str(str, len, &tmplen, "</name>");
@@ -1196,40 +1181,40 @@ genServiceDesc(int * len, const struct serviceDesc * s, int force_igd1)
 /* genWANIPCn() :
  * Generate the WANIPConnection xml description */
 char *
-genWANIPCn(int * len, int force_igd1)
+genWANIPCn(int * len)
 {
-	return genServiceDesc(len, &scpdWANIPCn, force_igd1);
+	return genServiceDesc(len, &scpdWANIPCn);
 }
 
 /* genWANCfg() :
  * Generate the WANInterfaceConfig xml description. */
 char *
-genWANCfg(int * len, int force_igd1)
+genWANCfg(int * len)
 {
-	return genServiceDesc(len, &scpdWANCfg, force_igd1);
+	return genServiceDesc(len, &scpdWANCfg);
 }
 
 #ifdef ENABLE_L3F_SERVICE
 char *
-genL3F(int * len, int force_igd1)
+genL3F(int * len)
 {
-	return genServiceDesc(len, &scpdL3F, force_igd1);
+	return genServiceDesc(len, &scpdL3F);
 }
 #endif
 
 #ifdef ENABLE_6FC_SERVICE
 char *
-gen6FC(int * len, int force_igd1)
+gen6FC(int * len)
 {
-	return genServiceDesc(len, &scpd6FC, force_igd1);
+	return genServiceDesc(len, &scpd6FC);
 }
 #endif
 
 #ifdef ENABLE_DP_SERVICE
 char *
-genDP(int * len, int force_igd1)
+genDP(int * len)
 {
-	return genServiceDesc(len, &scpdDP, force_igd1);
+	return genServiceDesc(len, &scpdDP);
 }
 #endif
 

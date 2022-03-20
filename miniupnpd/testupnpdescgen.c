@@ -2,7 +2,7 @@
 /* vim: tabstop=4 shiftwidth=4 noexpandtab
  * MiniUPnP project
  * http://miniupnp.free.fr/ or http://miniupnp.tuxfamily.org/
- * (c) 2006-2021 Thomas Bernard
+ * (c) 2006-2020 Thomas Bernard
  * This software is subject to the conditions detailed
  * in the LICENCE file provided within the distribution */
 
@@ -142,7 +142,6 @@ void stupid_test(void)
 int
 main(int argc, char * * argv)
 {
-	int force_igd1 = 0;
 	char * rootDesc;
 	int rootDescLen;
 	char * s;
@@ -161,7 +160,7 @@ main(int argc, char * * argv)
 			return 0;
 #ifdef IGD_V2
 		} else if(0 == strcmp(argv[l], "--forceigdv1")) {
-			force_igd1 = 1;
+			SETFLAG(FORCEIGDDESCV1MASK);
 #endif
 		} else {
 			fprintf(stderr, "unknown option %s\n", argv[l]);
@@ -174,7 +173,7 @@ main(int argc, char * * argv)
 		}
 	}
 	printf("Root Description :\n");
-	rootDesc = genRootDesc(&rootDescLen, force_igd1);
+	rootDesc = genRootDesc(&rootDescLen);
 	xml_pretty_print(rootDesc, rootDescLen, stdout);
 	f = fopen("testdescs/rootdesc.xml", "w");
 	if(f) {
@@ -184,7 +183,7 @@ main(int argc, char * * argv)
 	free(rootDesc);
 	printf("\n-------------\n");
 	printf("WANIPConnection Description :\n");
-	s = genWANIPCn(&l, force_igd1);
+	s = genWANIPCn(&l);
 	xml_pretty_print(s, l, stdout);
 	f = fopen("testdescs/wanipc_scpd.xml", "w");
 	if(f) {
@@ -194,7 +193,7 @@ main(int argc, char * * argv)
 	free(s);
 	printf("\n-------------\n");
 	printf("WANConfig Description :\n");
-	s = genWANCfg(&l, force_igd1);
+	s = genWANCfg(&l);
 	xml_pretty_print(s, l, stdout);
 	f = fopen("testdescs/wanconfig_scpd.xml", "w");
 	if(f) {
@@ -205,7 +204,7 @@ main(int argc, char * * argv)
 	printf("\n-------------\n");
 #ifdef ENABLE_L3F_SERVICE
 	printf("Layer3Forwarding service :\n");
-	s = genL3F(&l, force_igd1);
+	s = genL3F(&l);
 	xml_pretty_print(s, l, stdout);
 	f = fopen("testdescs/l3f_scpd.xml", "w");
 	if(f) {
@@ -217,7 +216,7 @@ main(int argc, char * * argv)
 #endif
 #ifdef ENABLE_6FC_SERVICE
 	printf("WANIPv6FirewallControl service :\n");
-	s = gen6FC(&l, force_igd1);
+	s = gen6FC(&l);
 	xml_pretty_print(s, l, stdout);
 	f = fopen("testdescs/wanipv6fc_scpd.xml", "w");
 	if(f) {
@@ -229,7 +228,7 @@ main(int argc, char * * argv)
 #endif
 #ifdef ENABLE_DP_SERVICE
 	printf("DeviceProtection service :\n");
-	s = genDP(&l, force_igd1);
+	s = genDP(&l);
 	xml_pretty_print(s, l, stdout);
 	f = fopen("testdescs/dp_scpd.xml", "w");
 	if(f) {

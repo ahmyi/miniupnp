@@ -17,8 +17,6 @@
 # it should now also run with dash
 
 TMPD=`mktemp -d -t miniwgetXXXXXXXXXX`
-TESTSERVER=./build/minihttptestserver
-TESTMINIWGET=./build/testminiwget
 HTTPSERVEROUT="${TMPD}/httpserverout"
 EXPECTEDFILE="${TMPD}/expectedfile"
 DOWNLOADEDFILE="${TMPD}/downloadedfile"
@@ -52,15 +50,11 @@ case "$HAVE_IPV6" in
 
 esac
 
-if [ ! -x "$TESTSERVER" ] || [ ! -x "$TESTMINIWGET" ] ; then
-	echo "Please build $TESTSERVER and $TESTMINIWGET"
-	#make minihttptestserver
-	#make testminiwget
-	exit 1
-fi
+#make minihttptestserver
+#make testminiwget
 
 # launching the test HTTP server
-$TESTSERVER $SERVERARGS -e $EXPECTEDFILE > $HTTPSERVEROUT &
+./minihttptestserver $SERVERARGS -e $EXPECTEDFILE > $HTTPSERVEROUT &
 SERVERPID=$!
 while [ -z "$PORT" ]; do
 	sleep 1
@@ -80,7 +74,7 @@ URL3="http://$ADDR:$PORT/addcrap"
 URL4="http://$ADDR:$PORT/malformed"
 
 echo "standard test ..."
-$TESTMINIWGET $URL1 "${DOWNLOADEDFILE}.1"
+./testminiwget $URL1 "${DOWNLOADEDFILE}.1"
 if cmp $EXPECTEDFILE "${DOWNLOADEDFILE}.1" ; then
 	echo "ok"
 else
@@ -89,7 +83,7 @@ else
 fi
 
 echo "chunked transfert encoding test ..."
-$TESTMINIWGET $URL2 "${DOWNLOADEDFILE}.2"
+./testminiwget $URL2 "${DOWNLOADEDFILE}.2"
 if cmp $EXPECTEDFILE "${DOWNLOADEDFILE}.2" ; then
 	echo "ok"
 else
@@ -98,7 +92,7 @@ else
 fi
 
 echo "response too long test ..."
-$TESTMINIWGET $URL3 "${DOWNLOADEDFILE}.3"
+./testminiwget $URL3 "${DOWNLOADEDFILE}.3"
 if cmp $EXPECTEDFILE "${DOWNLOADEDFILE}.3" ; then
 	echo "ok"
 else
@@ -107,7 +101,7 @@ else
 fi
 
 echo "malformed response test ..."
-$TESTMINIWGET $URL4 "${DOWNLOADEDFILE}.4"
+./testminiwget $URL4 "${DOWNLOADEDFILE}.4"
 
 # kill the test HTTP server
 kill $SERVERPID

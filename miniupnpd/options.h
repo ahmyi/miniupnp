@@ -3,7 +3,7 @@
  * MiniUPnP project
  * http://miniupnp.free.fr/ or https://miniupnp.tuxfamily.org/
  * author: Ryan Wagoner
- * (c) 2006-2021 Thomas Bernard
+ * (c) 2006-2020 Thomas Bernard
  * This software is subject to the conditions detailed
  * in the LICENCE file provided within the distribution */
 
@@ -57,8 +57,6 @@ enum upnpconfigoptions {
 	UPNPPCPMAXLIFETIME,		/* maximum lifetime for PCP mapping */
 	UPNPPCPALLOWTHIRDPARTY,		/* allow third-party requests */
 #ifdef USE_NETFILTER
-	UPNPTABLENAME,
-	UPNPNATTABLENAME,
 	UPNPFORWARDCHAIN,
 	UPNPNATCHAIN,
 	UPNPNATPOSTCHAIN,
@@ -74,9 +72,6 @@ enum upnpconfigoptions {
 	UPNPSECUREMODE,			/* secure_mode */
 #ifdef ENABLE_LEASEFILE
 	UPNPLEASEFILE,			/* lease_file */
-#ifdef ENABLE_UPNPPINHOLE
-	UPNPLEASEFILE6,			/* lease_file v6 */
-#endif
 #endif
 	UPNPMINISSDPDSOCKET,	/* minissdpdsocket */
 #ifdef IGD_V2
@@ -89,7 +84,7 @@ enum upnpconfigoptions {
  * parse and store the option file values
  * returns: 0 success, -1 failure */
 int
-readoptionsfile(const char * fname, int debug_flag);
+readoptionsfile(const char * fname);
 
 /* freeoptions()
  * frees memory allocated to option values */
